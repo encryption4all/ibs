@@ -80,14 +80,14 @@ impl<T: AsRef<[u8]>> From<T> for Identity {
     }
 }
 
-// Computes SHAKE128 with a 64-byte output.
-fn shake128_64(input: impl AsRef<[u8]>) -> [u8; 64] {
+// Computes SHAKE128 with a N-byte output.
+fn shake128<const N: usize>(input: impl AsRef<[u8]>) -> [u8; N] {
     use sha3::digest::{ExtendableOutput, Update, XofReader};
 
     let mut hasher = Shake128::default();
     hasher.update(input);
     let mut reader = hasher.finalize_xof();
-    let mut res = [0u8; 64];
+    let mut res = [0u8; N];
     reader.read(&mut res);
 
     res
@@ -98,7 +98,7 @@ fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
     let mut h_input = [0u8; 64];
     h_input[0..32].copy_from_slice(gr.compress().as_bytes());
     h_input[32..64].copy_from_slice(&id.0);
-    let h = shake128_64(h_input);
+    let h = shake128::<64>(h_input);
 
     Scalar::from_bytes_mod_order_wide(&h)
 }
