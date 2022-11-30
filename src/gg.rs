@@ -2,13 +2,13 @@
 //!
 //! - From: "[A Schnorr-Like Lightweight Identity-Based Signature Scheme](https://link.springer.com/chapter/10.1007/978-3-642-02384-2_9)", AfricaCrypt, 2009.
 //!
-//! The scheme is built on Curve25519 Ristretto, using crate [`curve25519_dalek`].
+//! The scheme is built on Curve25519 Ristretto, using crate [`curve25519_dalek_ng`].
 //!
 //! Hash functions G and H are instantiated as follows:
 //! - G = `SHA3_512`,
 //! - H = `SHAKE128` (with a 64-byte output).
 //!
-//! The constant [Ristretto basepoint][`curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT`] is used as a generator.
+//! The constant [Ristretto basepoint][`curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT`] is used as a generator.
 //!
 //! # Example
 //!
@@ -38,7 +38,7 @@
 //!     .verify());
 //! ```
 
-use curve25519_dalek::{
+use curve25519_dalek_ng::{
     constants::RISTRETTO_BASEPOINT_POINT, constants::RISTRETTO_BASEPOINT_TABLE,
     ristretto::RistrettoPoint, scalar::Scalar, traits::VartimeMultiscalarMul,
 };
@@ -148,14 +148,14 @@ impl Signer {
     }
 
     /// Sign additional message data.
-    pub fn update(&mut self, data: impl AsRef<[u8]>) {
-        self.g.update(data);
+    pub fn update(&mut self, m: impl AsRef<[u8]>) {
+        self.g.update(m);
     }
 
     /// Sign additional message data, in a chained manner.
     #[must_use]
-    pub fn chain(mut self, data: impl AsRef<[u8]>) -> Self {
-        self.g.update(data);
+    pub fn chain(mut self, m: impl AsRef<[u8]>) -> Self {
+        self.g.update(m);
         self
     }
 
@@ -197,15 +197,15 @@ impl Verifier {
         }
     }
 
-    /// Add message data to be verified.
+    /// Verify additional message data.
     pub fn update(&mut self, m: impl AsRef<[u8]>) {
         self.g.update(&m);
     }
 
-    /// Add message data to be verified, in a chained manner.
+    /// Verify additional message data, in a chained manner.
     #[must_use]
     pub fn chain(mut self, m: impl AsRef<[u8]>) -> Self {
-        self.update(&m);
+        self.g.update(&m);
         self
     }
 

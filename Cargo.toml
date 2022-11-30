@@ -12,15 +12,15 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/encryption4all/ibs"
 
 [dependencies]
-curve25519-dalek = { version = "3.2.1", features = ["serde"] }
-rand_core = { version = "^0.5", default-features = false }
-serde = { version = "1.0.147", default-features = false }
-sha3 = { version = "^0.9", default-features = false }
+curve25519-dalek-ng = { version = "4.1", features = ["serde"] }
+rand_core = { version = "0.6", default-features = false }
+serde = { version = "1.0", default-features = false }
+sha3 = { version = "0.9", default-features = false }
 
 [dev-dependencies]
-bincode = "1.3.3"
-criterion = "0.4.0"
-rand = "0.7.0"
+bincode = "1.3"
+criterion = "0.4"
+rand = "0.8"
 
 [[bench]]
 name = "bench"
