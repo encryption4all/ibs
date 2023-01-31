@@ -72,7 +72,7 @@ pub struct Signature {
 ///
 /// Uses a 32-byte internal representation.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct Identity([u8; 32]);
+pub struct Identity(pub [u8; 32]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
     fn from(b: T) -> Self {
