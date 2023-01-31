@@ -76,7 +76,11 @@ pub struct Identity([u8; 32]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
     fn from(b: T) -> Self {
-        Identity(Sha3_256::digest(b.as_ref()).into())
+        if b.as_ref().len() == 32 {
+            Identity(b.as_ref().try_into().unwrap())
+        } else {
+            Identity(Sha3_256::digest(b.as_ref()).into())
+        }
     }
 }
 
