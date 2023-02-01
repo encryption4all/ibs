@@ -2,13 +2,13 @@
 //!
 //! - From: "[A Schnorr-Like Lightweight Identity-Based Signature Scheme](https://link.springer.com/chapter/10.1007/978-3-642-02384-2_9)", AfricaCrypt, 2009.
 //!
-//! The scheme is built on Curve25519 Ristretto, using crate [`curve25519_dalek_ng`].
+//! The scheme is built on Curve25519 Ristretto, using crate [`curve25519_dalek`].
 //!
 //! Hash functions G and H are instantiated as follows:
 //! - G = `SHA3_512`,
 //! - H = `SHAKE128` (with a 64-byte output).
 //!
-//! The constant [Ristretto basepoint][`curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT`] is used as a generator.
+//! The constant [Ristretto basepoint][`curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT`] is used as a generator.
 //!
 //! # Example
 //!
@@ -38,7 +38,7 @@
 //!     .verify());
 //! ```
 
-use curve25519_dalek_ng::{
+use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_POINT, constants::RISTRETTO_BASEPOINT_TABLE,
     ristretto::RistrettoPoint, scalar::Scalar, traits::VartimeMultiscalarMul,
 };
@@ -89,7 +89,7 @@ fn shake128<const N: usize>(input: impl AsRef<[u8]>) -> [u8; N] {
     use sha3::digest::{ExtendableOutput, Update, XofReader};
 
     let mut hasher = Shake128::default();
-    hasher.update(input);
+    hasher.update(input.as_ref());
     let mut reader = hasher.finalize_xof();
     let mut res = [0u8; N];
     reader.read(&mut res);
@@ -110,7 +110,7 @@ fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
 /// Create a master key pair.
 pub fn setup<R: RngCore + CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
     let z = Scalar::random(r);
-    let gz = &RISTRETTO_BASEPOINT_TABLE * &z;
+    let gz = RISTRETTO_BASEPOINT_TABLE * &z;
 
     (gz, z)
 }
@@ -118,7 +118,7 @@ pub fn setup<R: RngCore + CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
 /// Extract a signing key from the master secret key for a given identity.
 pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) -> UserSecretKey {
     let r = Scalar::random(r);
-    let gr = &RISTRETTO_BASEPOINT_TABLE * &r;
+    let gr = RISTRETTO_BASEPOINT_TABLE * &r;
     let y = r + sk * h_helper(&gr, id);
 
     UserSecretKey { y, gr, id: *id }
@@ -137,7 +137,7 @@ impl Signer {
     /// Create a new signer.
     pub fn new<R: RngCore + CryptoRng>(usk: &UserSecretKey, r: &mut R) -> Self {
         let a = Scalar::random(r);
-        let ga = &RISTRETTO_BASEPOINT_TABLE * &a;
+        let ga = RISTRETTO_BASEPOINT_TABLE * &a;
 
         let mut g = Sha3_512::new();
         g.update(usk.id.0);
