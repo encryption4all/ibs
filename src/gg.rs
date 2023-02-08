@@ -68,15 +68,18 @@ pub struct Signature {
     gr: RistrettoPoint,
 }
 
+/// The size of the identity parameter.
+pub const IDENTITY_SIZE: usize = 32;
+
 /// Identity.
 ///
 /// Uses a 32-byte internal representation.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct Identity(pub [u8; 32]);
+pub struct Identity([u8; IDENTITY_SIZE]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
     fn from(b: T) -> Self {
-        if b.as_ref().len() == 32 {
+        if b.as_ref().len() == IDENTITY_SIZE {
             Identity(b.as_ref().try_into().unwrap())
         } else {
             Identity(Sha3_256::digest(b.as_ref()).into())
@@ -99,9 +102,9 @@ fn shake128<const N: usize>(input: impl AsRef<[u8]>) -> [u8; N] {
 
 // Helper function to compute H(g^r || id).
 fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
-    let mut h_input = [0u8; 64];
+    let mut h_input = [0u8; 32 + IDENTITY_SIZE];
     h_input[0..32].copy_from_slice(gr.compress().as_bytes());
-    h_input[32..64].copy_from_slice(&id.0);
+    h_input[32..32 + IDENTITY_SIZE].copy_from_slice(&id.0);
     let h = shake128::<64>(h_input);
 
     Scalar::from_bytes_mod_order_wide(&h)
