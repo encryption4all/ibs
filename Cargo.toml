@@ -1,6 +1,6 @@
 [package]
 name = "ibs"
-version = "0.4.0-rc.1"
+version = "0.4.0-rc.2"
 authors = [
   "Leon Botros <l.botros@cs.ru.nl>"
 ]
@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/encryption4all/ibs"
 
 [dependencies]
-curve25519-dalek = { version = "4.0.0-rc.0", features = ["serde", "digest", "rand_core"] }
+curve25519-dalek = { version = "4.0.0-rc.1", features = ["serde", "digest", "rand_core"] }
 rand_core = { version = "0.6", default-features = false }
 serde = { version = "1.0", default-features = false }
 sha3 = { version = "0.10", default-features = false }
