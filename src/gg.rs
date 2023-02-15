@@ -52,6 +52,9 @@ pub type PublicKey = RistrettoPoint;
 /// Secret key.
 pub type SecretKey = Scalar;
 
+/// Size of a compressed [`UserSecretKey`].
+pub const USK_BYTES: usize = 96;
+
 /// User secret key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSecretKey {
@@ -59,6 +62,9 @@ pub struct UserSecretKey {
     gr: RistrettoPoint,
     id: Identity,
 }
+
+/// Size of a compressed [`Signature`].
+pub const SIG_BYTES: usize = 96;
 
 /// Signature.
 #[derive(Debug, Clone, Serialize, Deserialize)]
