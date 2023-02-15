@@ -47,13 +47,13 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
 
 /// Size of a compressed public key.
-pub const PK_SIZE: usize = 32;
+pub const PK_BYTES: usize = 32;
 
 /// Public key.
 pub type PublicKey = RistrettoPoint;
 
 /// Size of a compressed secret key.
-pub const SK_SIZE: usize = 32;
+pub const SK_BYTES: usize = 32;
 
 /// Secret key.
 pub type SecretKey = Scalar;
@@ -81,17 +81,17 @@ pub struct Signature {
 }
 
 /// The size of the identity parameter.
-pub const IDENTITY_SIZE: usize = 32;
+pub const IDENTITY_BYTES: usize = 32;
 
 /// Identity.
 ///
 /// Uses a 32-byte internal representation.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct Identity([u8; IDENTITY_SIZE]);
+pub struct Identity([u8; IDENTITY_BYTES]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
     fn from(b: T) -> Self {
-        if b.as_ref().len() == IDENTITY_SIZE {
+        if b.as_ref().len() == IDENTITY_BYTES {
             Identity(b.as_ref().try_into().unwrap())
         } else {
             Identity(Sha3_256::digest(b.as_ref()).into())
@@ -114,9 +114,9 @@ fn shake128<const N: usize>(input: impl AsRef<[u8]>) -> [u8; N] {
 
 // Helper function to compute H(g^r || id).
 fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
-    let mut h_input = [0u8; 32 + IDENTITY_SIZE];
+    let mut h_input = [0u8; 32 + IDENTITY_BYTES];
     h_input[0..32].copy_from_slice(gr.compress().as_bytes());
-    h_input[32..32 + IDENTITY_SIZE].copy_from_slice(&id.0);
+    h_input[32..32 + IDENTITY_BYTES].copy_from_slice(&id.0);
     let h = shake128::<64>(h_input);
 
     Scalar::from_bytes_mod_order_wide(&h)
