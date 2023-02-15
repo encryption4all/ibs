@@ -46,8 +46,14 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
 
+/// Size of a compressed public key.
+pub const PK_SIZE: usize = 32;
+
 /// Public key.
 pub type PublicKey = RistrettoPoint;
+
+/// Size of a compressed secret key.
+pub const SK_SIZE: usize = 32;
 
 /// Secret key.
 pub type SecretKey = Scalar;
