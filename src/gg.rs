@@ -62,7 +62,7 @@ pub type SecretKey = Scalar;
 pub const USK_BYTES: usize = 96;
 
 /// User secret key.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserSecretKey {
     y: Scalar,
     gr: RistrettoPoint,
@@ -86,7 +86,7 @@ pub const IDENTITY_BYTES: usize = 32;
 /// Identity.
 ///
 /// Uses a 32-byte internal representation.
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity([u8; IDENTITY_BYTES]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
