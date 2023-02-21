@@ -24,18 +24,18 @@
 //! let id = Identity::from("Johnny");
 //!                                                                            
 //! let usk_id = gg::keygen(&sk, &id, &mut rng);
-//! let sig = Signer::new(&usk_id, &mut rng)
+//! let sig = Signer::new()
 //!     .chain(b"The eagle has landed")
-//!     .sign();
+//!     .sign(&usk_id, &mut rng);
 //!                                                                            
-//! assert!(Verifier::new(&pk, &sig, &id)
+//! assert!(Verifier::new()
 //!     .chain(b"The eagle ")
 //!     .chain(b"has landed")
-//!     .verify());
+//!     .verify(&pk, &sig, &id));
 //!                                                                            
-//! assert!(!Verifier::new(&pk, &sig, &id)
+//! assert!(!Verifier::new()
 //!     .chain(b"The falcon has landed")
-//!     .verify());
+//!     .verify(&pk, &sig, &id));
 //! ```
 
 use curve25519_dalek::{
@@ -140,30 +140,27 @@ pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) 
 }
 
 /// Signer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Signer {
-    usk: UserSecretKey,
-    a: Scalar,
-    ga: RistrettoPoint,
     g: Sha3_512,
+}
+
+impl Default for Signer {
+    fn default() -> Self {
+        Signer::new()
+    }
+}
+
+impl Default for Verifier {
+    fn default() -> Self {
+        Verifier::new()
+    }
 }
 
 impl Signer {
     /// Create a new signer.
-    pub fn new<R: RngCore + CryptoRng>(usk: &UserSecretKey, r: &mut R) -> Self {
-        let a = Scalar::random(r);
-        let ga = RISTRETTO_BASEPOINT_TABLE * &a;
-
-        let mut g = Sha3_512::new();
-        g.update(usk.id.0);
-        g.update(ga.compress().as_bytes());
-
-        Self {
-            usk: usk.clone(),
-            a,
-            ga,
-            g,
-        }
+    pub fn new() -> Self {
+        Self { g: Sha3_512::new() }
     }
 
     /// Sign additional message data.
@@ -179,41 +176,29 @@ impl Signer {
     }
 
     /// Create the signature. Call this after the message has been processed.
-    pub fn sign(self) -> Signature {
-        let b = self.a + self.usk.y * Scalar::from_hash(self.g);
+    pub fn sign<R: RngCore + CryptoRng>(mut self, usk: &UserSecretKey, r: &mut R) -> Signature {
+        let a = Scalar::random(r);
+        let ga = RISTRETTO_BASEPOINT_TABLE * &a;
 
-        Signature {
-            ga: self.ga,
-            b,
-            gr: self.usk.gr,
-        }
+        self.g.update(usk.id.0);
+        self.g.update(ga.compress().as_bytes());
+
+        let b = a + usk.y * Scalar::from_hash(self.g);
+
+        Signature { ga, b, gr: usk.gr }
     }
 }
 
 /// Verifier.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Verifier {
-    pk: PublicKey,
-    sig: Signature,
-    c: Scalar,
     g: Sha3_512,
 }
 
 impl Verifier {
     /// Create a new verifier instance.
-    pub fn new(pk: &PublicKey, sig: &Signature, id: &Identity) -> Self {
-        let c = h_helper(&sig.gr, id);
-
-        let mut g = Sha3_512::new();
-        g.update(id.0);
-        g.update(sig.ga.compress().to_bytes());
-
-        Self {
-            pk: *pk,
-            sig: sig.clone(),
-            c,
-            g,
-        }
+    pub fn new() -> Self {
+        Self { g: Sha3_512::new() }
     }
 
     /// Verify additional message data.
@@ -229,13 +214,17 @@ impl Verifier {
     }
 
     /// Verifies the signature.
-    pub fn verify(self) -> bool {
+    pub fn verify(mut self, pk: &PublicKey, sig: &Signature, id: &Identity) -> bool {
+        self.g.update(id.0);
+        self.g.update(sig.ga.compress().to_bytes());
+
+        let c = h_helper(&sig.gr, id);
         let d = Scalar::from_hash(self.g);
 
-        let lhs = -self.sig.ga;
+        let lhs = -sig.ga;
         let rhs = RistrettoPoint::vartime_multiscalar_mul(
-            &[-self.sig.b, self.c * d, d],
-            &[RISTRETTO_BASEPOINT_POINT, self.pk, self.sig.gr],
+            &[-sig.b, c * d, d],
+            &[RISTRETTO_BASEPOINT_POINT, *pk, sig.gr],
         );
 
         lhs.eq(&rhs)
@@ -262,19 +251,19 @@ mod tests {
         let (pk, usk, id) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new(&usk, &mut OsRng).chain(message).sign();
+        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
 
-        assert!(Verifier::new(&pk, &sig, &id).chain(message).verify());
+        assert!(Verifier::new().chain(message).verify(&pk, &sig, &id));
     }
 
     #[test]
     fn test_sign_wrong_message() {
         let (pk, usk, id) = default_setup();
 
-        let sig = Signer::new(&usk, &mut OsRng).chain(b"some message").sign();
-        assert!(!Verifier::new(&pk, &sig, &id)
+        let sig = Signer::new().chain(b"some message").sign(&usk, &mut OsRng);
+        assert!(!Verifier::new()
             .chain(b"some other message")
-            .verify());
+            .verify(&pk, &sig, &id));
     }
 
     #[test]
@@ -283,9 +272,9 @@ mod tests {
         let (pk2, _, _) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new(&usk1, &mut OsRng).chain(message).sign();
+        let sig = Signer::new().chain(message).sign(&usk1, &mut OsRng);
 
-        assert!(!Verifier::new(&pk2, &sig, &id1).chain(message).verify());
+        assert!(!Verifier::new().chain(message).verify(&pk2, &sig, &id1));
     }
 
     #[test]
@@ -294,9 +283,9 @@ mod tests {
         let (_, _, id2) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new(&usk1, &mut OsRng).chain(message).sign();
+        let sig = Signer::new().chain(message).sign(&usk1, &mut OsRng);
 
-        assert!(!Verifier::new(&pk1, &sig, &id2).chain(message).verify());
+        assert!(!Verifier::new().chain(message).verify(&pk1, &sig, &id2));
     }
 
     #[test]
@@ -314,16 +303,28 @@ mod tests {
         // after which it sends the signature to the verifier.
         let pk_recovered: PublicKey = bincode::deserialize(&pk_serialized).unwrap();
         let usk_recovered = bincode::deserialize(&usk_serialized).unwrap();
-        let sig = Signer::new(&usk_recovered, &mut OsRng)
+        let sig = Signer::new()
             .chain(b"some message")
-            .sign();
+            .sign(&usk_recovered, &mut OsRng);
         let sig_serialized = bincode::serialize(&sig).unwrap();
 
         // 3. A verifier retrieves the signature from the signer and verifies it.
         let sig_recovered: Signature = bincode::deserialize(&sig_serialized).unwrap();
 
-        assert!(Verifier::new(&pk_recovered, &sig_recovered, &id)
+        assert!(Verifier::new()
             .chain(b"some message")
-            .verify());
+            .verify(&pk_recovered, &sig_recovered, &id));
+    }
+
+    #[test]
+    fn test_clone_state() {
+        let (pk, usk, id) = default_setup();
+
+        let signer = Signer::new().chain(b"a");
+        let sig2 = signer.clone().chain(b"b").sign(&usk, &mut OsRng);
+        let sig1 = signer.sign(&usk, &mut OsRng);
+        let verifier = Verifier::new().chain(b"a");
+        assert!(verifier.clone().chain(b"b").verify(&pk, &sig2, &id));
+        assert!(verifier.verify(&pk, &sig1, &id));
     }
 }
