@@ -50,19 +50,21 @@ use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
 pub const PK_BYTES: usize = 32;
 
 /// Public key.
-pub type PublicKey = RistrettoPoint;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicKey(RistrettoPoint);
 
 /// Size of a compressed secret key.
 pub const SK_BYTES: usize = 32;
 
 /// Secret key.
-pub type SecretKey = Scalar;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SecretKey(Scalar);
 
 /// Size of a compressed [`UserSecretKey`].
 pub const USK_BYTES: usize = 96;
 
 /// User secret key.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserSecretKey {
     y: Scalar,
     gr: RistrettoPoint,
@@ -127,14 +129,14 @@ pub fn setup<R: RngCore + CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
     let z = Scalar::random(r);
     let gz = RISTRETTO_BASEPOINT_TABLE * &z;
 
-    (gz, z)
+    (PublicKey(gz), SecretKey(z))
 }
 
 /// Extract a signing key from the master secret key for a given identity.
 pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) -> UserSecretKey {
     let r = Scalar::random(r);
     let gr = RISTRETTO_BASEPOINT_TABLE * &r;
-    let y = r + sk * h_helper(&gr, id);
+    let y = r + sk.0 * h_helper(&gr, id);
 
     UserSecretKey { y, gr, id: *id }
 }
@@ -224,7 +226,7 @@ impl Verifier {
         let lhs = -sig.ga;
         let rhs = RistrettoPoint::vartime_multiscalar_mul(
             &[-sig.b, c * d, d],
-            &[RISTRETTO_BASEPOINT_POINT, *pk, sig.gr],
+            &[RISTRETTO_BASEPOINT_POINT, pk.0, sig.gr],
         );
 
         lhs.eq(&rhs)
