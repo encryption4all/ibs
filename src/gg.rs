@@ -216,6 +216,7 @@ impl Verifier {
     }
 
     /// Verifies the signature.
+    #[must_use]
     pub fn verify(mut self, pk: &PublicKey, sig: &Signature, id: &Identity) -> bool {
         self.g.update(id.0);
         self.g.update(sig.ga.compress().to_bytes());
