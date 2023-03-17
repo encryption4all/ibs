@@ -13,9 +13,9 @@ pub fn criterion_benchmark_ibs(c: &mut Criterion) {
     let id = Identity::from("Johnny");
 
     let usk_id = gg::keygen(&sk, &id, &mut rng);
-    let sig = Signer::new(&usk_id, &mut rng)
+    let sig = Signer::new()
         .chain(b"The eagle has landed")
-        .sign();
+        .sign(&usk_id, &mut rng);
 
     c.bench_function("setup", |b| {
         let mut rng = thread_rng();
@@ -31,17 +31,17 @@ pub fn criterion_benchmark_ibs(c: &mut Criterion) {
         let mut rng = thread_rng();
 
         b.iter(|| {
-            Signer::new(&usk_id, &mut rng)
+            Signer::new()
                 .chain(b"The eagle has landed")
-                .sign()
+                .sign(&usk_id, &mut rng)
         })
     });
 
     c.bench_function("verify", |b| {
         b.iter(|| {
-            Verifier::new(&pk, &sig, &id)
+            Verifier::new()
                 .chain("The eagle has landed")
-                .verify()
+                .verify(&pk, &sig, &id)
         })
     });
 }
