@@ -5,8 +5,8 @@
 //! The scheme is built on Curve25519 Ristretto, using crate [`curve25519_dalek`].
 //!
 //! Hash functions G and H are instantiated as follows:
-//! - G = `SHA3_512`,
-//! - H = `SHAKE128` (with a 64-byte output).
+//! - G = `SHAKE128` (with a 64-byte output).
+//! - H = `SHA3_512`,
 //!
 //! The constant [Ristretto basepoint][`curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT`] is used as a generator.
 //!
@@ -44,6 +44,7 @@ use curve25519_dalek::{
 };
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use sha3::digest::{ExtendableOutput, Update};
 use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
 
 /// Size of a compressed public key.
@@ -101,27 +102,14 @@ impl<T: AsRef<[u8]>> From<T> for Identity {
     }
 }
 
-// Computes SHAKE128 with a N-byte output.
-fn shake128<const N: usize>(input: impl AsRef<[u8]>) -> [u8; N] {
-    use sha3::digest::{ExtendableOutput, Update, XofReader};
-
-    let mut hasher = Shake128::default();
-    hasher.update(input.as_ref());
-    let mut reader = hasher.finalize_xof();
-    let mut res = [0u8; N];
-    reader.read(&mut res);
-
-    res
-}
-
 // Helper function to compute H(g^r || id).
 fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
-    let mut h_input = [0u8; 32 + IDENTITY_BYTES];
-    h_input[0..32].copy_from_slice(gr.compress().as_bytes());
-    h_input[32..32 + IDENTITY_BYTES].copy_from_slice(&id.0);
-    let h = shake128::<64>(h_input);
+    let mut h = Sha3_512::new();
 
-    Scalar::from_bytes_mod_order_wide(&h)
+    Digest::update(&mut h, gr.compress().as_bytes());
+    Digest::update(&mut h, &id.0);
+
+    Scalar::from_hash(h)
 }
 
 /// Create a master key pair.
@@ -144,7 +132,7 @@ pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) 
 /// Signer.
 #[derive(Debug, Clone)]
 pub struct Signer {
-    g: Sha3_512,
+    g: Shake128,
 }
 
 impl Default for Signer {
@@ -153,27 +141,23 @@ impl Default for Signer {
     }
 }
 
-impl Default for Verifier {
-    fn default() -> Self {
-        Verifier::new()
-    }
-}
-
 impl Signer {
     /// Create a new signer.
     pub fn new() -> Self {
-        Self { g: Sha3_512::new() }
+        Self {
+            g: Shake128::default(),
+        }
     }
 
     /// Sign additional message data.
     pub fn update(&mut self, m: impl AsRef<[u8]>) {
-        self.g.update(m);
+        self.g.update(m.as_ref());
     }
 
     /// Sign additional message data, in a chained manner.
     #[must_use]
     pub fn chain(mut self, m: impl AsRef<[u8]>) -> Self {
-        self.g.update(m);
+        self.g.update(m.as_ref());
         self
     }
 
@@ -182,10 +166,13 @@ impl Signer {
         let a = Scalar::random(r);
         let ga = RISTRETTO_BASEPOINT_TABLE * &a;
 
-        self.g.update(usk.id.0);
+        self.g.update(&usk.id.0);
         self.g.update(ga.compress().as_bytes());
 
-        let b = a + usk.y * Scalar::from_hash(self.g);
+        let mut out = [0u8; 64];
+        self.g.finalize_xof_into(&mut out);
+
+        let b = a + usk.y * Scalar::from_bytes_mod_order_wide(&out);
 
         Signature { ga, b, gr: usk.gr }
     }
@@ -194,35 +181,46 @@ impl Signer {
 /// Verifier.
 #[derive(Debug, Clone)]
 pub struct Verifier {
-    g: Sha3_512,
+    g: Shake128,
+}
+
+impl Default for Verifier {
+    fn default() -> Self {
+        Verifier::new()
+    }
 }
 
 impl Verifier {
     /// Create a new verifier instance.
     pub fn new() -> Self {
-        Self { g: Sha3_512::new() }
+        Self {
+            g: Shake128::default(),
+        }
     }
 
     /// Verify additional message data.
     pub fn update(&mut self, m: impl AsRef<[u8]>) {
-        self.g.update(&m);
+        self.g.update(m.as_ref());
     }
 
     /// Verify additional message data, in a chained manner.
     #[must_use]
     pub fn chain(mut self, m: impl AsRef<[u8]>) -> Self {
-        self.g.update(&m);
+        self.g.update(m.as_ref());
         self
     }
 
     /// Verifies the signature.
     #[must_use]
     pub fn verify(mut self, pk: &PublicKey, sig: &Signature, id: &Identity) -> bool {
-        self.g.update(id.0);
-        self.g.update(sig.ga.compress().to_bytes());
+        self.g.update(&id.0);
+        self.g.update(&sig.ga.compress().to_bytes());
 
         let c = h_helper(&sig.gr, id);
-        let d = Scalar::from_hash(self.g);
+
+        let mut out = [0u8; 64];
+        self.g.finalize_xof_into(&mut out);
+        let d = Scalar::from_bytes_mod_order_wide(&out);
 
         let lhs = -sig.ga;
         let rhs = RistrettoPoint::vartime_multiscalar_mul(
