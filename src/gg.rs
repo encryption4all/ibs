@@ -45,7 +45,7 @@ use curve25519_dalek::{
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha3::digest::{ExtendableOutput, Update};
-use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
+use sha3::{Digest, Sha3_256, Sha3_512, TurboShake128, TurboShake128Core};
 
 /// Size of a compressed public key.
 pub const PK_BYTES: usize = 32;
@@ -132,7 +132,7 @@ pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) 
 /// Signer.
 #[derive(Debug, Clone)]
 pub struct Signer {
-    g: Shake128,
+    g: TurboShake128,
 }
 
 impl Default for Signer {
@@ -145,7 +145,7 @@ impl Signer {
     /// Create a new signer.
     pub fn new() -> Self {
         Self {
-            g: Shake128::default(),
+            g: TurboShake128::from_core(TurboShake128Core::new(0x01)),
         }
     }
 
@@ -181,7 +181,7 @@ impl Signer {
 /// Verifier.
 #[derive(Debug, Clone)]
 pub struct Verifier {
-    g: Shake128,
+    g: TurboShake128,
 }
 
 impl Default for Verifier {
@@ -194,7 +194,7 @@ impl Verifier {
     /// Create a new verifier instance.
     pub fn new() -> Self {
         Self {
-            g: Shake128::default(),
+            g: TurboShake128::from_core(TurboShake128Core::new(0x01)),
         }
     }
 
