@@ -43,29 +43,39 @@ use curve25519_dalek::{
     ristretto::RistrettoPoint, scalar::Scalar, traits::VartimeMultiscalarMul,
 };
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use sha3::digest::{ExtendableOutput, Update};
 use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Size of a compressed public key.
 pub const PK_BYTES: usize = 32;
 
 /// Public key.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PublicKey(RistrettoPoint);
 
 /// Size of a compressed secret key.
 pub const SK_BYTES: usize = 32;
 
 /// Secret key.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct SecretKey(Scalar);
 
 /// Size of a compressed [`UserSecretKey`].
 pub const USK_BYTES: usize = 96;
 
 /// User secret key.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct UserSecretKey {
     y: Scalar,
     gr: RistrettoPoint,
@@ -76,7 +86,8 @@ pub struct UserSecretKey {
 pub const SIG_BYTES: usize = 96;
 
 /// Signature.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Signature {
     ga: RistrettoPoint,
     b: Scalar,
@@ -89,7 +100,9 @@ pub const IDENTITY_BYTES: usize = 32;
 /// Identity.
 ///
 /// Uses a 32-byte internal representation.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct Identity([u8; IDENTITY_BYTES]);
 
 impl<T: AsRef<[u8]>> From<T> for Identity {
@@ -126,7 +139,11 @@ pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) 
     let gr = RISTRETTO_BASEPOINT_TABLE * &r;
     let y = r + sk.0 * h_helper(&gr, id);
 
-    UserSecretKey { y, gr, id: *id }
+    UserSecretKey {
+        y,
+        gr,
+        id: id.clone(),
+    }
 }
 
 /// Signer.
@@ -290,6 +307,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_round() {
         // This test simulates a real-world scenario,
         // where all communicated messages are serialized/deserialized.
