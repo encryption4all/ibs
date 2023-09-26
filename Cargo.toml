@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/encryption4all/ibs"
 
 [dependencies]
-curve25519-dalek = { version = "4.0.0-rc.2", features = [
+curve25519-dalek = { version = "4.1.1", features = [
   "alloc",
   "precomputed-tables",
   "digest",
