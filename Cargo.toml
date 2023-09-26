@@ -1,6 +1,6 @@
 [package]
 name = "ibs"
-version = "0.4.0-rc.7"
+version = "0.4.0"
 authors = ["Leon Botros <l.botros@cs.ru.nl>"]
 edition = "2021"
 categories = ["cryptography", "no-std", "elliptic-curve", "identity-based"]
