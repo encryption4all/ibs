@@ -40,7 +40,8 @@
 
 use curve25519_dalek::{
     constants::RISTRETTO_BASEPOINT_POINT, constants::RISTRETTO_BASEPOINT_TABLE,
-    ristretto::RistrettoPoint, scalar::Scalar, traits::VartimeMultiscalarMul,
+    ristretto::CompressedRistretto, ristretto::RistrettoPoint, scalar::Scalar,
+    traits::VartimeMultiscalarMul,
 };
 use rand_core::{CryptoRng, RngCore};
 use sha3::digest::{ExtendableOutput, Update};
@@ -112,6 +113,113 @@ impl<T: AsRef<[u8]>> From<T> for Identity {
         } else {
             Identity(Sha3_256::digest(b.as_ref()).into())
         }
+    }
+}
+
+// Helper: decode a 32-byte slice into a canonical `Scalar`.
+fn scalar_from_canonical(bytes: [u8; 32]) -> Option<Scalar> {
+    Scalar::from_canonical_bytes(bytes).into()
+}
+
+// Helper: decode a 32-byte slice into a `RistrettoPoint`.
+fn point_from_bytes(bytes: [u8; 32]) -> Option<RistrettoPoint> {
+    CompressedRistretto(bytes).decompress()
+}
+
+impl PublicKey {
+    /// Serialize the public key to its compressed byte encoding.
+    pub fn to_bytes(&self) -> [u8; PK_BYTES] {
+        self.0.compress().to_bytes()
+    }
+
+    /// Deserialize a public key from its compressed byte encoding.
+    ///
+    /// Returns `None` if `bytes` is not a valid compressed Ristretto point.
+    pub fn from_bytes(bytes: &[u8; PK_BYTES]) -> Option<Self> {
+        point_from_bytes(*bytes).map(PublicKey)
+    }
+}
+
+impl SecretKey {
+    /// Serialize the secret key to its canonical byte encoding.
+    pub fn to_bytes(&self) -> [u8; SK_BYTES] {
+        self.0.to_bytes()
+    }
+
+    /// Deserialize a secret key from its canonical byte encoding.
+    ///
+    /// Returns `None` if `bytes` is not a canonical scalar encoding.
+    pub fn from_bytes(bytes: &[u8; SK_BYTES]) -> Option<Self> {
+        scalar_from_canonical(*bytes).map(SecretKey)
+    }
+}
+
+impl UserSecretKey {
+    /// Serialize the user secret key to a 96-byte encoding.
+    ///
+    /// Layout: `y (32 bytes) || gr (32 bytes, compressed) || id (32 bytes)`.
+    pub fn to_bytes(&self) -> [u8; USK_BYTES] {
+        let mut out = [0u8; USK_BYTES];
+        out[..32].copy_from_slice(&self.y.to_bytes());
+        out[32..64].copy_from_slice(&self.gr.compress().to_bytes());
+        out[64..96].copy_from_slice(&self.id.0);
+        out
+    }
+
+    /// Deserialize a user secret key from its 96-byte encoding.
+    ///
+    /// Returns `None` if `y` is not a canonical scalar or if `gr` is not a
+    /// valid compressed Ristretto point. See [`UserSecretKey::to_bytes`] for
+    /// the encoding layout.
+    pub fn from_bytes(bytes: &[u8; USK_BYTES]) -> Option<Self> {
+        let mut y_bytes = [0u8; 32];
+        let mut gr_bytes = [0u8; 32];
+        let mut id_bytes = [0u8; IDENTITY_BYTES];
+        y_bytes.copy_from_slice(&bytes[..32]);
+        gr_bytes.copy_from_slice(&bytes[32..64]);
+        id_bytes.copy_from_slice(&bytes[64..96]);
+
+        let y = scalar_from_canonical(y_bytes)?;
+        let gr = point_from_bytes(gr_bytes)?;
+
+        Some(UserSecretKey {
+            y,
+            gr,
+            id: Identity(id_bytes),
+        })
+    }
+}
+
+impl Signature {
+    /// Serialize the signature to a 96-byte encoding.
+    ///
+    /// Layout: `ga (32 bytes, compressed) || b (32 bytes) || gr (32 bytes, compressed)`.
+    pub fn to_bytes(&self) -> [u8; SIG_BYTES] {
+        let mut out = [0u8; SIG_BYTES];
+        out[..32].copy_from_slice(&self.ga.compress().to_bytes());
+        out[32..64].copy_from_slice(&self.b.to_bytes());
+        out[64..96].copy_from_slice(&self.gr.compress().to_bytes());
+        out
+    }
+
+    /// Deserialize a signature from its 96-byte encoding.
+    ///
+    /// Returns `None` if `ga` or `gr` is not a valid compressed Ristretto
+    /// point or if `b` is not a canonical scalar encoding. See
+    /// [`Signature::to_bytes`] for the encoding layout.
+    pub fn from_bytes(bytes: &[u8; SIG_BYTES]) -> Option<Self> {
+        let mut ga_bytes = [0u8; 32];
+        let mut b_bytes = [0u8; 32];
+        let mut gr_bytes = [0u8; 32];
+        ga_bytes.copy_from_slice(&bytes[..32]);
+        b_bytes.copy_from_slice(&bytes[32..64]);
+        gr_bytes.copy_from_slice(&bytes[64..96]);
+
+        let ga = point_from_bytes(ga_bytes)?;
+        let b = scalar_from_canonical(b_bytes)?;
+        let gr = point_from_bytes(gr_bytes)?;
+
+        Some(Signature { ga, b, gr })
     }
 }
 
@@ -333,6 +441,85 @@ mod tests {
         assert!(Verifier::new()
             .chain(b"some message")
             .verify(&pk_recovered, &sig_recovered, &id));
+    }
+
+    #[test]
+    fn test_byte_roundtrip_public_key() {
+        let (pk, _) = setup(&mut OsRng);
+        let bytes = pk.to_bytes();
+        let recovered = PublicKey::from_bytes(&bytes).expect("valid pk bytes");
+        assert_eq!(pk, recovered);
+        assert_eq!(bytes, recovered.to_bytes());
+    }
+
+    #[test]
+    fn test_byte_roundtrip_secret_key() {
+        let (_, sk) = setup(&mut OsRng);
+        let bytes = sk.to_bytes();
+        let recovered = SecretKey::from_bytes(&bytes).expect("valid sk bytes");
+        assert_eq!(sk, recovered);
+        assert_eq!(bytes, recovered.to_bytes());
+    }
+
+    #[test]
+    fn test_byte_roundtrip_user_secret_key() {
+        let (_, usk, _) = default_setup();
+        let bytes = usk.to_bytes();
+        let recovered = UserSecretKey::from_bytes(&bytes).expect("valid usk bytes");
+        assert_eq!(usk, recovered);
+        assert_eq!(bytes, recovered.to_bytes());
+    }
+
+    #[test]
+    fn test_byte_roundtrip_signature() {
+        let (_, usk, _) = default_setup();
+        let sig = Signer::new().chain(b"msg").sign(&usk, &mut OsRng);
+        let bytes = sig.to_bytes();
+        let recovered = Signature::from_bytes(&bytes).expect("valid sig bytes");
+        assert_eq!(bytes, recovered.to_bytes());
+    }
+
+    #[test]
+    fn test_byte_roundtrip_end_to_end() {
+        // Full sign/verify across to_bytes/from_bytes on every type.
+        let (pk, sk) = setup(&mut OsRng);
+        let mut id_bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut id_bytes);
+        let id: Identity = id_bytes.into();
+        let usk = keygen(&sk, &id, &mut OsRng);
+
+        let pk = PublicKey::from_bytes(&pk.to_bytes()).unwrap();
+        let usk = UserSecretKey::from_bytes(&usk.to_bytes()).unwrap();
+
+        let message = b"the eagle has landed";
+        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig = Signature::from_bytes(&sig.to_bytes()).unwrap();
+
+        assert!(Verifier::new().chain(message).verify(&pk, &sig, &id));
+    }
+
+    #[test]
+    fn test_from_bytes_rejects_invalid_point() {
+        // 0xFF... is not a canonical compressed Ristretto encoding.
+        let bad = [0xFFu8; PK_BYTES];
+        assert!(PublicKey::from_bytes(&bad).is_none());
+    }
+
+    #[test]
+    fn test_from_bytes_rejects_non_canonical_scalar() {
+        // The all-ones byte string exceeds the curve25519 scalar order.
+        let bad = [0xFFu8; SK_BYTES];
+        assert!(SecretKey::from_bytes(&bad).is_none());
+    }
+
+    #[test]
+    fn test_signature_from_bytes_rejects_bad_point() {
+        let (_, usk, _) = default_setup();
+        let sig = Signer::new().chain(b"msg").sign(&usk, &mut OsRng);
+        let mut bytes = sig.to_bytes();
+        // Corrupt the `ga` point to an invalid encoding.
+        bytes[..32].copy_from_slice(&[0xFFu8; 32]);
+        assert!(Signature::from_bytes(&bytes).is_none());
     }
 
     #[test]
