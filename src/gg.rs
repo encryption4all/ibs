@@ -86,7 +86,7 @@ pub struct UserSecretKey {
 pub const SIG_BYTES: usize = 96;
 
 /// Signature.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Signature {
     ga: RistrettoPoint,
@@ -120,7 +120,7 @@ fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
     let mut h = Sha3_512::new();
 
     Digest::update(&mut h, gr.compress().as_bytes());
-    Digest::update(&mut h, &id.0);
+    Digest::update(&mut h, id.0);
 
     Scalar::from_hash(h)
 }
@@ -333,6 +333,19 @@ mod tests {
         assert!(Verifier::new()
             .chain(b"some message")
             .verify(&pk_recovered, &sig_recovered, &id));
+    }
+
+    #[test]
+    fn test_signature_eq() {
+        let (_, usk, _) = default_setup();
+        let message = b"message under test";
+
+        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig_clone = sig.clone();
+        assert_eq!(sig, sig_clone);
+
+        let sig_other = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        assert_ne!(sig, sig_other);
     }
 
     #[test]
