@@ -421,22 +421,26 @@ mod tests {
         // where all communicated messages are serialized/deserialized.
 
         let (pk, usk, id) = default_setup();
+        let cfg = bincode::config::standard();
 
         // 1. PKG creates key pair and publishes the public key.
-        let pk_serialized = bincode::serialize(&pk).unwrap();
-        let usk_serialized = bincode::serialize(&usk).unwrap();
+        let pk_serialized = bincode::serde::encode_to_vec(&pk, cfg).unwrap();
+        let usk_serialized = bincode::serde::encode_to_vec(&usk, cfg).unwrap();
 
         // 2. A signer retrieves the public key and signs some message,
         // after which it sends the signature to the verifier.
-        let pk_recovered: PublicKey = bincode::deserialize(&pk_serialized).unwrap();
-        let usk_recovered = bincode::deserialize(&usk_serialized).unwrap();
+        let (pk_recovered, _): (PublicKey, usize) =
+            bincode::serde::decode_from_slice(&pk_serialized, cfg).unwrap();
+        let (usk_recovered, _): (UserSecretKey, usize) =
+            bincode::serde::decode_from_slice(&usk_serialized, cfg).unwrap();
         let sig = Signer::new()
             .chain(b"some message")
             .sign(&usk_recovered, &mut OsRng);
-        let sig_serialized = bincode::serialize(&sig).unwrap();
+        let sig_serialized = bincode::serde::encode_to_vec(&sig, cfg).unwrap();
 
         // 3. A verifier retrieves the signature from the signer and verifies it.
-        let sig_recovered: Signature = bincode::deserialize(&sig_serialized).unwrap();
+        let (sig_recovered, _): (Signature, usize) =
+            bincode::serde::decode_from_slice(&sig_serialized, cfg).unwrap();
 
         assert!(Verifier::new()
             .chain(b"some message")
