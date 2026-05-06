@@ -4,7 +4,7 @@
 
 Pure Rust implementations of identity-based signature (IBS) algorithms. Currently implements the Galindo-Garcia scheme on Curve25519.
 
-In the PostGuard ecosystem, this crate is used by `pg-core` to produce sender signatures so recipients can verify who encrypted a message.
+Within PostGuard, this crate is used by `pg-core` to produce sender signatures so recipients can verify who encrypted a message.
 
 ### Supported schemes
 
@@ -43,4 +43,4 @@ New versions are published manually to [crates.io](https://crates.io/crates/ibs)
 
 ## License
 
-Dual-licensed at your option under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE). This is the standard Rust ecosystem licensing arrangement and is declared as `license = "MIT OR Apache-2.0"` in `Cargo.toml`.
+Dual-licensed at your option under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE). Declared in `Cargo.toml` as `license = "MIT OR Apache-2.0"`.
