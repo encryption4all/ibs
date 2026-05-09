@@ -1,8 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use ibs::{
     gg,
     gg::{Identity, Signer, Verifier},
 };
+use std::hint::black_box;
 
 use rand::prelude::*;
 
