@@ -3,7 +3,7 @@ name = "ibs"
 version = "0.4.0"
 authors = ["Leon Botros <l.botros@cs.ru.nl>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.91.1"
 categories = ["cryptography", "no-std", "elliptic-curve", "identity-based"]
 description = "Identity-Based Signature schemes"
 keywords = ["ibs", "signatures", "ecc", "no_std"]
@@ -23,7 +23,7 @@ zeroize = { version = "1.6.0", features = ["zeroize_derive"], optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
 
 [dev-dependencies]
-bincode = { version = "2", features = ["serde"] }
+bincode-next = { version = "=3.0.0-rc.13", default-features = false, features = ["std", "serde"] }
 criterion = "0.8"
 rand = "0.8"
 
