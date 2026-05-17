@@ -493,6 +493,7 @@ mod tests {
         let sig = Signer::new().chain(b"msg").sign(&usk, &mut OsRng);
         let bytes = sig.to_bytes();
         let recovered = Signature::from_bytes(&bytes).expect("valid sig bytes");
+        assert_eq!(sig, recovered);
         assert_eq!(bytes, recovered.to_bytes());
     }
 
