@@ -18,8 +18,8 @@
 //!     gg::{Identity, PublicKey, SecretKey, Signer, UserSecretKey, Verifier},
 //! };
 //! use rand::prelude::*;
-//!                                                                            
-//! let mut rng = thread_rng();
+//!
+//! let mut rng = rand::rng();
 //! let (pk, sk) = gg::setup(&mut rng);
 //! let id = Identity::from("Johnny");
 //!                                                                            
@@ -43,9 +43,10 @@ use curve25519_dalek::{
     ristretto::CompressedRistretto, ristretto::RistrettoPoint, scalar::Scalar,
     traits::VartimeMultiscalarMul,
 };
-use rand_core::{CryptoRng, RngCore};
+use rand_core::CryptoRng;
 use sha3::digest::{ExtendableOutput, Update};
-use sha3::{Digest, Sha3_256, Sha3_512, Shake128};
+use sha3::{Digest, Sha3_256, Sha3_512};
+use shake::Shake128;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -234,7 +235,7 @@ fn h_helper(gr: &RistrettoPoint, id: &Identity) -> Scalar {
 }
 
 /// Create a master key pair.
-pub fn setup<R: RngCore + CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
+pub fn setup<R: CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
     let z = Scalar::random(r);
     let gz = RISTRETTO_BASEPOINT_TABLE * &z;
 
@@ -242,7 +243,7 @@ pub fn setup<R: RngCore + CryptoRng>(r: &mut R) -> (PublicKey, SecretKey) {
 }
 
 /// Extract a signing key from the master secret key for a given identity.
-pub fn keygen<R: RngCore + CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) -> UserSecretKey {
+pub fn keygen<R: CryptoRng>(sk: &SecretKey, id: &Identity, r: &mut R) -> UserSecretKey {
     let r = Scalar::random(r);
     let gr = RISTRETTO_BASEPOINT_TABLE * &r;
     let y = r + sk.0 * h_helper(&gr, id);
@@ -287,7 +288,7 @@ impl Signer {
     }
 
     /// Create the signature. Call this after the message has been processed.
-    pub fn sign<R: RngCore + CryptoRng>(mut self, usk: &UserSecretKey, r: &mut R) -> Signature {
+    pub fn sign<R: CryptoRng>(mut self, usk: &UserSecretKey, r: &mut R) -> Signature {
         let a = Scalar::random(r);
         let ga = RISTRETTO_BASEPOINT_TABLE * &a;
 
@@ -360,14 +361,14 @@ impl Verifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand_core::OsRng;
+    use rand::Rng;
 
     fn default_setup() -> (PublicKey, UserSecretKey, Identity) {
-        let (pk, sk) = setup(&mut OsRng);
+        let (pk, sk) = setup(&mut rand::rng());
         let mut rand_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut rand_bytes);
+        rand::rng().fill_bytes(&mut rand_bytes);
         let id = rand_bytes.into();
-        let usk = keygen(&sk, &id, &mut OsRng);
+        let usk = keygen(&sk, &id, &mut rand::rng());
 
         (pk, usk, id)
     }
@@ -377,7 +378,7 @@ mod tests {
         let (pk, usk, id) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig = Signer::new().chain(message).sign(&usk, &mut rand::rng());
 
         assert!(Verifier::new().chain(message).verify(&pk, &sig, &id));
     }
@@ -386,7 +387,9 @@ mod tests {
     fn test_sign_wrong_message() {
         let (pk, usk, id) = default_setup();
 
-        let sig = Signer::new().chain(b"some message").sign(&usk, &mut OsRng);
+        let sig = Signer::new()
+            .chain(b"some message")
+            .sign(&usk, &mut rand::rng());
         assert!(!Verifier::new()
             .chain(b"some other message")
             .verify(&pk, &sig, &id));
@@ -398,7 +401,7 @@ mod tests {
         let (pk2, _, _) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new().chain(message).sign(&usk1, &mut OsRng);
+        let sig = Signer::new().chain(message).sign(&usk1, &mut rand::rng());
 
         assert!(!Verifier::new().chain(message).verify(&pk2, &sig, &id1));
     }
@@ -409,7 +412,7 @@ mod tests {
         let (_, _, id2) = default_setup();
 
         let message = b"some identical message";
-        let sig = Signer::new().chain(message).sign(&usk1, &mut OsRng);
+        let sig = Signer::new().chain(message).sign(&usk1, &mut rand::rng());
 
         assert!(!Verifier::new().chain(message).verify(&pk1, &sig, &id2));
     }
@@ -435,7 +438,7 @@ mod tests {
             bincode_next::serde::decode_from_slice(&usk_serialized, cfg).unwrap();
         let sig = Signer::new()
             .chain(b"some message")
-            .sign(&usk_recovered, &mut OsRng);
+            .sign(&usk_recovered, &mut rand::rng());
         let sig_serialized = bincode_next::serde::encode_to_vec(&sig, cfg).unwrap();
 
         // 3. A verifier retrieves the signature from the signer and verifies it.
@@ -452,17 +455,17 @@ mod tests {
         let (_, usk, _) = default_setup();
         let message = b"message under test";
 
-        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig = Signer::new().chain(message).sign(&usk, &mut rand::rng());
         let sig_clone = sig.clone();
         assert_eq!(sig, sig_clone);
 
-        let sig_other = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig_other = Signer::new().chain(message).sign(&usk, &mut rand::rng());
         assert_ne!(sig, sig_other);
     }
 
     #[test]
     fn test_byte_roundtrip_public_key() {
-        let (pk, _) = setup(&mut OsRng);
+        let (pk, _) = setup(&mut rand::rng());
         let bytes = pk.to_bytes();
         let recovered = PublicKey::from_bytes(&bytes).expect("valid pk bytes");
         assert_eq!(pk, recovered);
@@ -471,7 +474,7 @@ mod tests {
 
     #[test]
     fn test_byte_roundtrip_secret_key() {
-        let (_, sk) = setup(&mut OsRng);
+        let (_, sk) = setup(&mut rand::rng());
         let bytes = sk.to_bytes();
         let recovered = SecretKey::from_bytes(&bytes).expect("valid sk bytes");
         assert_eq!(sk, recovered);
@@ -490,7 +493,7 @@ mod tests {
     #[test]
     fn test_byte_roundtrip_signature() {
         let (_, usk, _) = default_setup();
-        let sig = Signer::new().chain(b"msg").sign(&usk, &mut OsRng);
+        let sig = Signer::new().chain(b"msg").sign(&usk, &mut rand::rng());
         let bytes = sig.to_bytes();
         let recovered = Signature::from_bytes(&bytes).expect("valid sig bytes");
         assert_eq!(sig, recovered);
@@ -500,17 +503,17 @@ mod tests {
     #[test]
     fn test_byte_roundtrip_end_to_end() {
         // Full sign/verify across to_bytes/from_bytes on every type.
-        let (pk, sk) = setup(&mut OsRng);
+        let (pk, sk) = setup(&mut rand::rng());
         let mut id_bytes = [0u8; 32];
-        OsRng.fill_bytes(&mut id_bytes);
+        rand::rng().fill_bytes(&mut id_bytes);
         let id: Identity = id_bytes.into();
-        let usk = keygen(&sk, &id, &mut OsRng);
+        let usk = keygen(&sk, &id, &mut rand::rng());
 
         let pk = PublicKey::from_bytes(&pk.to_bytes()).unwrap();
         let usk = UserSecretKey::from_bytes(&usk.to_bytes()).unwrap();
 
         let message = b"the eagle has landed";
-        let sig = Signer::new().chain(message).sign(&usk, &mut OsRng);
+        let sig = Signer::new().chain(message).sign(&usk, &mut rand::rng());
         let sig = Signature::from_bytes(&sig.to_bytes()).unwrap();
 
         assert!(Verifier::new().chain(message).verify(&pk, &sig, &id));
@@ -533,7 +536,7 @@ mod tests {
     #[test]
     fn test_signature_from_bytes_rejects_bad_point() {
         let (_, usk, _) = default_setup();
-        let sig = Signer::new().chain(b"msg").sign(&usk, &mut OsRng);
+        let sig = Signer::new().chain(b"msg").sign(&usk, &mut rand::rng());
         let mut bytes = sig.to_bytes();
         // Corrupt the `ga` point to an invalid encoding.
         bytes[..32].copy_from_slice(&[0xFFu8; 32]);
@@ -545,8 +548,8 @@ mod tests {
         let (pk, usk, id) = default_setup();
 
         let signer = Signer::new().chain(b"a");
-        let sig2 = signer.clone().chain(b"b").sign(&usk, &mut OsRng);
-        let sig1 = signer.sign(&usk, &mut OsRng);
+        let sig2 = signer.clone().chain(b"b").sign(&usk, &mut rand::rng());
+        let sig1 = signer.sign(&usk, &mut rand::rng());
         let verifier = Verifier::new().chain(b"a");
         assert!(verifier.clone().chain(b"b").verify(&pk, &sig2, &id));
         assert!(verifier.verify(&pk, &sig1, &id));

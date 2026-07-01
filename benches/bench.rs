@@ -8,7 +8,7 @@ use std::hint::black_box;
 use rand::prelude::*;
 
 pub fn criterion_benchmark_ibs(c: &mut Criterion) {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     let (pk, sk) = gg::setup(&mut rng);
     let id = Identity::from("Johny");
