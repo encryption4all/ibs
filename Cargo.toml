@@ -11,21 +11,22 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/encryption4all/ibs"
 
 [dependencies]
-curve25519-dalek = { version = "4.1.1", features = [
+curve25519-dalek = { version = "=5.0.0-rc.1", features = [
   "alloc",
   "precomputed-tables",
   "digest",
   "rand_core",
 ] }
-rand_core = { version = "0.6", default-features = false }
-sha3 = { version = "0.10", default-features = false }
+rand_core = { version = "0.10", default-features = false }
+sha3 = { version = "0.12", default-features = false }
+shake = { version = "0.1", default-features = false }
 zeroize = { version = "1.6.0", features = ["zeroize_derive"], optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
 
 [dev-dependencies]
 bincode-next = { version = "=3.0.0-rc.13", default-features = false, features = ["std", "serde"] }
 criterion = "0.8"
-rand = "0.8"
+rand = "0.10"
 
 [features]
 default = ["serde", "zeroize"]
