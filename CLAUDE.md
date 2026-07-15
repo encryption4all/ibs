@@ -36,8 +36,10 @@ Always run `cargo fmt --all -- --check` and a wasm32 build before pushing.
   lands; nothing else in the stack needs to change for that.
 - Safe to bump independently: `criterion` (dev-dep only, no API touch, e.g.
   `std::hint::black_box` replacing the deprecated `criterion::black_box`).
-- Tombstone: stay on `bincode` 2.x; see `rules/bincode-3-tombstone.md`. Do not
-  bump to `bincode` 3.0.0.
+- Serialization (dev-dep only): tests use the `bincode-next` fork, pinned to
+  `=3.0.0-rc.13`; `gg.rs` calls `bincode_next::`. This migrated off the original
+  `bincode` crate in commit `fdc9bac`. Tombstone: that original `bincode` crate
+  is unmaintained, so do not switch back to it.
 
 ## RustCrypto 2025/26 + rand 0.10 API migration facts
 This stack moved to `curve25519-dalek` 5.x + `rand_core` 0.10 + `digest` 0.11 in
