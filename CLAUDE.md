@@ -22,13 +22,6 @@ signatures, so a recipient can verify who encrypted a message.
   fix in one does not carry over to the other.
 - `encryption4all/pdf-signature` — signs PDFs with identity-based signatures. It
   reaches this crate through `pg-core`, not as a direct dependency.
-
-One company, two GitHub orgs. `encryption4all` is the vehicle the PostGuard
-research project used to apply for grants, kept as an org after Yivi bought
-PostGuard to commercialise it; `privacybydesign` is the Yivi/IRMA lineage. The
-split is historical: same company, same maintainers, same review conventions. We
-are maintainers here, not upstream contributors.
-
 ## Where the rest of it lives
 
 Not in this file. Detail that is documentation belongs at
