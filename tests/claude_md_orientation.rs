@@ -24,9 +24,12 @@ fn claude_md() -> PathBuf {
 #[test]
 fn claude_md_stays_orientation_sized() {
     let path = claude_md();
-    let bytes = fs::metadata(&path)
-        .unwrap_or_else(|e| panic!("cannot stat {}: {e}", path.display()))
-        .len();
+    // Measured on LF-normalised content: the Test job also runs on windows-latest,
+    // where the checkout is CRLF and every line would otherwise cost an extra byte.
+    let bytes = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+        .replace("\r\n", "\n")
+        .len() as u64;
 
     assert!(
         bytes <= MAX_BYTES,
@@ -56,16 +59,17 @@ fn claude_md_has_no_heading_from_the_cut_corpus() {
 
     let headings: Vec<&str> = body
         .lines()
-        .filter_map(|line| line.strip_prefix("## "))
+        .filter(|line| line.starts_with('#'))
+        .map(|line| line.trim_start_matches('#'))
         .map(str::trim)
         .collect();
 
     for section in CUT_SECTIONS {
         assert!(
             !headings.contains(&section),
-            "CLAUDE.md has a \"## {section}\" heading again. That section went with the agent-notes \
-             corpus (#698); it is documentation on docs.postguard.eu, a binding rule, or history at \
-             a5bd441 now, not this file."
+            "CLAUDE.md has a \"{section}\" heading again, at some level. That section went with the \
+             agent-notes corpus (#698); it is documentation on docs.postguard.eu, a binding rule, or \
+             history at a5bd441 now, not this file."
         );
     }
 }
